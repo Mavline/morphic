@@ -2,7 +2,7 @@ import { getChat, saveChat } from '@/lib/actions/chat'
 import { generateRelatedQuestions } from '@/lib/agents/generate-related-questions'
 import { ExtendedCoreMessage } from '@/lib/types'
 import { convertToExtendedCoreMessages } from '@/lib/utils'
-import { CoreMessage, DataStreamWriter, JSONValue, Message } from 'ai'
+import { CoreMessage, DataStreamWriter, JSONValue, Message, generateId } from 'ai'
 
 interface HandleStreamFinishParams {
   responseMessages: CoreMessage[]
@@ -10,6 +10,7 @@ interface HandleStreamFinishParams {
   model: string
   chatId: string
   dataStream: DataStreamWriter
+  userId?: string
   skipRelatedQuestions?: boolean
   annotations?: ExtendedCoreMessage[]
 }
@@ -20,6 +21,7 @@ export async function handleStreamFinish({
   model,
   chatId,
   dataStream,
+  userId = 'anonymous',
   skipRelatedQuestions = false,
   annotations = []
 }: HandleStreamFinishParams) {
@@ -28,20 +30,11 @@ export async function handleStreamFinish({
     let allAnnotations = [...annotations]
 
     if (!skipRelatedQuestions) {
-      // Notify related questions loading
-      const relatedQuestionsAnnotation: JSONValue = {
-        type: 'related-questions',
-        data: { items: [] }
-      }
-      dataStream.writeMessageAnnotation(relatedQuestionsAnnotation)
-
-      // Generate related questions
       const relatedQuestions = await generateRelatedQuestions(
         responseMessages,
         model
       )
 
-      // Create and add related questions annotation
       const updatedRelatedQuestionsAnnotation: ExtendedCoreMessage = {
         role: 'data',
         content: {
@@ -56,34 +49,51 @@ export async function handleStreamFinish({
       allAnnotations.push(updatedRelatedQuestionsAnnotation)
     }
 
-    // Create the message to save
     const generatedMessages = [
       ...extendedCoreMessages,
       ...responseMessages.slice(0, -1),
-      ...allAnnotations, // Add annotations before the last message
+      ...allAnnotations,
       ...responseMessages.slice(-1)
     ] as ExtendedCoreMessage[]
 
-    // Get the chat from the database if it exists, otherwise create a new one
-    const savedChat = (await getChat(chatId)) ?? {
+    const savedChat = (await getChat(chatId, userId)) ?? {
       messages: [],
       createdAt: new Date(),
-      userId: 'anonymous',
+      userId,
       path: `/search/${chatId}`,
-      title: originalMessages[0].content,
+      title: originalMessages[0]?.content || 'New Chat',
       id: chatId
     }
 
-    // Save chat with complete response and related questions
-    await saveChat({
+    const updatedChat = {
       ...savedChat,
       messages: generatedMessages
-    }).catch(error => {
-      console.error('Failed to save chat:', error)
-      throw new Error('Failed to save chat history')
-    })
+    }
+
+    await saveChat(updatedChat, userId)
+
+    // Отправляем сообщение о завершении с обновленными сообщениями
+    const completeMessage = {
+      type: 'complete-message',
+      data: {
+        messages: generatedMessages.map(msg => ({
+          id: msg.id || generateId(),
+          role: msg.role,
+          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        }))
+      }
+    } as const
+
+    dataStream.writeMessageAnnotation(completeMessage)
   } catch (error) {
     console.error('Error in handleStreamFinish:', error)
+    const errorMessage = {
+      type: 'error',
+      data: {
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }
+    } as const
+    dataStream.writeMessageAnnotation(errorMessage)
     throw error
   }
 }

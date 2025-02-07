@@ -45,6 +45,12 @@ export function createToolCallingStreamResponse(config: BaseStreamConfig) {
         result.mergeIntoDataStream(dataStream)
       } catch (error) {
         console.error('Stream execution error:', error)
+        dataStream.writeMessageAnnotation({
+          type: 'error',
+          data: {
+            message: error instanceof Error ? error.message : String(error)
+          }
+        } as const)
         throw error
       }
     },

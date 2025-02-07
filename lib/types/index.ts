@@ -1,4 +1,4 @@
-import { CoreMessage, JSONValue, Message } from 'ai'
+import { CoreMessage, JSONValue, Message, ToolCall, ToolResult } from 'ai'
 
 export type SearchResults = {
   images: SearchResultImage[]
@@ -71,6 +71,7 @@ export interface Chat extends Record<string, any> {
 export type ExtendedCoreMessage = Omit<CoreMessage, 'role' | 'content'> & {
   role: CoreMessage['role'] | 'data'
   content: CoreMessage['content'] | JSONValue
+  id?: string
 }
 
 export type AIMessage = {
@@ -113,3 +114,20 @@ export type SearXNGSearchResults = {
   number_of_results?: number
   query: string
 }
+
+export type ToolInvocation =
+  | {
+      state: 'call'
+      step?: number
+      toolCallId: string
+      toolName: string
+      args: any
+    }
+  | {
+      state: 'result'
+      step?: number
+      toolCallId: string
+      toolName: string
+      args: any
+      result: string
+    }

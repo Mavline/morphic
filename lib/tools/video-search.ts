@@ -16,13 +16,14 @@ export const videoSearchTool = tool({
       })
 
       if (!response.ok) {
-        throw new Error('Network response was not ok')
+        console.error('Video Search API error:', response.statusText)
+        return { videos: [] }
       }
 
       return await response.json()
     } catch (error) {
       console.error('Video Search API error:', error)
-      return null
+      return { videos: [] }
     }
   }
 })

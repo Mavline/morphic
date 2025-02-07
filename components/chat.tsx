@@ -6,6 +6,8 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { ChatMessages } from './chat-messages'
 import { ChatPanel } from './chat-panel'
+import { useAuthState } from 'react-firebase-hooks/auth'
+import { auth } from '@/lib/firebase'
 
 export function Chat({
   id,
@@ -16,6 +18,8 @@ export function Chat({
   savedMessages?: Message[]
   query?: string
 }) {
+  const [user] = useAuthState(auth)
+
   const {
     messages,
     input,
@@ -31,7 +35,8 @@ export function Chat({
     initialMessages: savedMessages,
     id: CHAT_ID,
     body: {
-      id
+      id,
+      userId: user?.uid ?? '',
     },
     onFinish: () => {
       window.history.replaceState({}, '', `/search/${id}`)
@@ -39,7 +44,7 @@ export function Chat({
     onError: error => {
       toast.error(`Error in chat: ${error.message}`)
     },
-    sendExtraMessageFields: false // Disable extra message fields
+    sendExtraMessageFields: false
   })
 
   useEffect(() => {
@@ -55,7 +60,7 @@ export function Chat({
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setData(undefined) // reset data to clear tool call
+    setData(undefined)
     handleSubmit(e)
   }
 

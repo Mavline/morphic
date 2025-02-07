@@ -1,10 +1,11 @@
-import { JSONValue, Message, ToolInvocation } from 'ai'
+import { JSONValue, Message } from 'ai'
 import { useMemo } from 'react'
 import { AnswerSection } from './answer-section'
 import { ReasoningAnswerSection } from './reasoning-answer-section'
 import RelatedQuestions from './related-questions'
 import { ToolSection } from './tool-section'
 import { UserMessage } from './user-message'
+import { ToolInvocation } from '@/lib/types'
 
 interface RenderMessageProps {
   message: Message
@@ -31,7 +32,7 @@ export function RenderMessage({
     [message.annotations]
   )
 
-  // render for manual tool call
+  // Обработка результатов поиска из аннотаций
   const toolData = useMemo(() => {
     const toolAnnotations =
       (message.annotations?.filter(
@@ -39,15 +40,15 @@ export function RenderMessage({
           (annotation as unknown as { type: string }).type === 'tool_call'
       ) as unknown as Array<{
         data: {
-          args: string
           toolCallId: string
-          toolName: string
-          result?: string
           state: 'call' | 'result'
+          toolName: string
+          args: string
+          result?: string
         }
       }>) || []
 
-    // Group by toolCallId and prioritize 'result' state
+    // Группируем по toolCallId и приоритизируем состояние 'result'
     const toolDataMap = toolAnnotations.reduce((acc, annotation) => {
       const existing = acc.get(annotation.data.toolCallId)
       if (!existing || annotation.data.state === 'result') {
@@ -57,7 +58,8 @@ export function RenderMessage({
           result:
             annotation.data.result && annotation.data.result !== 'undefined'
               ? JSON.parse(annotation.data.result)
-              : undefined
+              : undefined,
+          state: annotation.data.state
         } as ToolInvocation)
       }
       return acc
@@ -66,30 +68,19 @@ export function RenderMessage({
     return Array.from(toolDataMap.values())
   }, [message.annotations])
 
-  if (message.role === 'user') {
-    return <UserMessage message={message.content} />
+  if (!message || !message.content) {
+    return null
   }
 
-  if (message.toolInvocations?.length) {
-    return (
-      <>
-        {message.toolInvocations.map(tool => (
-          <ToolSection
-            key={tool.toolCallId}
-            tool={tool}
-            isOpen={getIsOpen(messageId)}
-            onOpenChange={open => onOpenChange(messageId, open)}
-          />
-        ))}
-      </>
-    )
+  if (message.role === 'user') {
+    return <UserMessage key={`user-${messageId}`} message={message.content} />
   }
 
   return (
     <>
       {toolData.map(tool => (
         <ToolSection
-          key={tool.toolCallId}
+          key={`tool-${tool.toolCallId}`}
           tool={tool}
           isOpen={getIsOpen(tool.toolCallId)}
           onOpenChange={open => onOpenChange(tool.toolCallId, open)}
@@ -97,6 +88,7 @@ export function RenderMessage({
       ))}
       {message.reasoning ? (
         <ReasoningAnswerSection
+          key={`reasoning-${messageId}`}
           content={{
             reasoning: message.reasoning,
             answer: message.content
@@ -107,22 +99,22 @@ export function RenderMessage({
         />
       ) : (
         <AnswerSection
+          key={`answer-${messageId}`}
           content={message.content}
           isOpen={getIsOpen(messageId)}
           onOpenChange={open => onOpenChange(messageId, open)}
           chatId={chatId}
         />
       )}
-      {!message.toolInvocations &&
-        relatedQuestions &&
-        relatedQuestions.length > 0 && (
-          <RelatedQuestions
-            annotations={relatedQuestions as JSONValue[]}
-            onQuerySelect={onQuerySelect}
-            isOpen={getIsOpen(`${messageId}-related`)}
-            onOpenChange={open => onOpenChange(`${messageId}-related`, open)}
-          />
-        )}
+      {relatedQuestions && relatedQuestions.length > 0 && (
+        <RelatedQuestions
+          key={`related-${messageId}`}
+          annotations={relatedQuestions as JSONValue[]}
+          onQuerySelect={onQuerySelect}
+          isOpen={getIsOpen(`${messageId}-related`)}
+          onOpenChange={open => onOpenChange(`${messageId}-related`, open)}
+        />
+      )}
     </>
   )
 }

@@ -11,6 +11,11 @@ import { ModelSelector } from './model-selector'
 import { SearchModeToggle } from './search-mode-toggle'
 import { Button } from './ui/button'
 import { IconLogo } from './ui/icons'
+import { auth } from '@/lib/firebase'
+import { useAuthState } from 'react-firebase-hooks/auth'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword } from 'firebase/auth'
 
 interface ChatPanelProps {
   input: string
@@ -35,12 +40,16 @@ export function ChatPanel({
   stop,
   append
 }: ChatPanelProps) {
+  const [user] = useAuthState(auth)
   const [showEmptyScreen, setShowEmptyScreen] = useState(false)
   const router = useRouter()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isFirstRender = useRef(true)
   const [isComposing, setIsComposing] = useState(false) // Composition state
   const [enterDisabled, setEnterDisabled] = useState(false) // Disable Enter after composition ends
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   const handleCompositionStart = () => setIsComposing(true)
 
@@ -69,6 +78,40 @@ export function ChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
+  const onFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!user) {
+      setLoginDialogOpen(true)
+      return
+    }
+    handleSubmit(e)
+  }
+
+  async function handleGoogleSignIn() {
+    const provider = new GoogleAuthProvider()
+    try {
+      await signInWithPopup(auth, provider)
+    } catch (error) {
+      console.error('SignIn error:', error)
+    }
+  }
+
+  async function handleEmailSignIn() {
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (error) {
+      console.error('Email Signin error:', error)
+    }
+  }
+
+  async function handleEmailRegister() {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password)
+    } catch (error) {
+      console.error('Email Registration error:', error)
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -83,8 +126,46 @@ export function ChatPanel({
           <IconLogo className="size-12 text-muted-foreground" />
         </div>
       )}
+
+      {/* Force Login Dialog—only shown if user tries to send & not signed in */}
+      <Dialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle>Login Required</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-2">
+            Choose a sign-in method:
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button onClick={handleGoogleSignIn}>Sign in with Google</Button>
+            {/* Or email */}
+            <input
+              className="border px-2 py-1"
+              placeholder="Email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+            <input
+              className="border px-2 py-1"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+            <div className="flex gap-2 justify-center">
+              <Button onClick={handleEmailSignIn}>
+                Sign in with Email
+              </Button>
+              <Button variant="secondary" onClick={handleEmailRegister}>
+                Register
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <form
-        onSubmit={handleSubmit}
+        onSubmit={onFormSubmit}
         className={cn(
           'max-w-3xl w-full mx-auto',
           messages.length > 0 ? 'px-2 py-4' : 'px-6'

@@ -13,6 +13,9 @@ export function SearchModeToggle() {
     const savedMode = getCookie('search-mode')
     if (savedMode !== null) {
       setIsSearchMode(savedMode === 'true')
+    } else {
+      // Set default to true if no cookie exists
+      setCookie('search-mode', 'true')
     }
   }, [])
 

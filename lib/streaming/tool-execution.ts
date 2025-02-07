@@ -75,18 +75,21 @@ export async function executeToolCall(
     return { toolCallDataAnnotation: null, toolCallMessages: [] }
   }
 
+  const toolCallId = `call_${generateId()}`
   const toolCallAnnotation = {
     type: 'tool_call',
     data: {
       state: 'call',
-      toolCallId: `call_${generateId()}`,
+      toolCallId,
       toolName: toolCall.tool,
       args: JSON.stringify(toolCall.parameters)
     }
   }
+
+  // Отправляем начальное состояние поиска
   dataStream.writeData(toolCallAnnotation)
 
-  // Support for search tool only for now
+  // Выполняем поиск
   const searchResults = await search(
     toolCall.parameters?.query ?? '',
     toolCall.parameters?.max_results,
@@ -95,6 +98,7 @@ export async function executeToolCall(
     toolCall.parameters?.exclude_domains
   )
 
+  // Создаем и отправляем результаты поиска
   const updatedToolCallAnnotation = {
     ...toolCallAnnotation,
     data: {
@@ -103,6 +107,8 @@ export async function executeToolCall(
       state: 'result'
     }
   }
+
+  // Отправляем результаты в стрим
   dataStream.writeMessageAnnotation(updatedToolCallAnnotation)
 
   const toolCallDataAnnotation: ExtendedCoreMessage = {

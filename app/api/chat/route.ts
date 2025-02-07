@@ -7,9 +7,13 @@ export const maxDuration = 30
 
 const DEFAULT_MODEL = 'openai:gpt-4o-mini'
 
+export const runtime = 'edge'
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function POST(req: Request) {
   try {
-    const { messages, id: chatId } = await req.json()
+    const { messages, id: chatId, userId } = await req.json()
     const referer = req.headers.get('referer')
     const isSharePage = referer?.includes('/share/')
 
@@ -25,8 +29,9 @@ export async function POST(req: Request) {
     const searchMode = cookieStore.get('search-mode')?.value === 'true'
     const model = modelFromCookie || DEFAULT_MODEL
     const provider = model.split(':')[0]
+    
     if (!isProviderEnabled(provider)) {
-      return new Response(`Selected provider is not enabled ${provider}`, {
+      return new Response(`Provider ${provider} not enabled`, {
         status: 404,
         statusText: 'Not Found'
       })
@@ -34,28 +39,24 @@ export async function POST(req: Request) {
 
     const supportsToolCalling = isToolCallSupported(model)
 
-    return supportsToolCalling
-      ? createToolCallingStreamResponse({
-          messages,
-          model,
-          chatId,
-          searchMode
-        })
-      : createManualToolStreamResponse({
-          messages,
-          model,
-          chatId,
-          searchMode
-        })
+    const config = {
+      messages,
+      model,
+      chatId,
+      searchMode,
+      userId
+    }
+
+    const response = supportsToolCalling
+      ? await createToolCallingStreamResponse(config)
+      : await createManualToolStreamResponse(config)
+
+    return response
   } catch (error) {
     console.error('API route error:', error)
     return new Response(
       JSON.stringify({
-        error:
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred',
-        status: 500
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
       }),
       {
         status: 500,

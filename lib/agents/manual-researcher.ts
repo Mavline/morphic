@@ -58,10 +58,12 @@ export function manualResearcher({
       model: getModel(model),
       system: `${systemPrompt}\nCurrent date and time: ${currentDate}`,
       messages,
-      temperature: 0.6,
+      temperature: 0.7,
       topP: 1,
-      topK: 40,
-      experimental_transform: smoothStream({ chunking: 'word' })
+      experimental_transform: smoothStream({ 
+        chunking: 'word',
+        delayInMs: 0
+      })
     }
   } catch (error) {
     console.error('Error in manualResearcher:', error)

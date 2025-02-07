@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { RenderMessage } from './render-message'
 import { ToolSection } from './tool-section'
 import { Spinner } from './ui/spinner'
+import { ToolInvocation } from '@/lib/types'
 
 interface ChatMessagesProps {
   messages: Message[]
@@ -91,9 +92,10 @@ export function ChatMessages({
 
   return (
     <div className="relative mx-auto px-4 w-full">
-      {messages.map(message => (
-        <div key={message.id} className="mb-4 flex flex-col gap-4">
+      {messages.map((message, index) => (
+        <div key={`${message.id}-${index}`} className="mb-4 flex flex-col gap-4">
           <RenderMessage
+            key={`render-${message.id}-${index}`}
             message={message}
             messageId={message.id}
             getIsOpen={getIsOpen}
@@ -103,17 +105,15 @@ export function ChatMessages({
           />
         </div>
       ))}
-      {showLoading &&
-        (lastToolData ? (
-          <ToolSection
-            key={manualToolCallId}
-            tool={lastToolData}
-            isOpen={getIsOpen(manualToolCallId)}
-            onOpenChange={open => handleOpenChange(manualToolCallId, open)}
-          />
-        ) : (
-          <Spinner />
-        ))}
+      {showLoading && lastToolData && (
+        <ToolSection
+          key={`tool-${manualToolCallId}`}
+          tool={lastToolData}
+          isOpen={getIsOpen(manualToolCallId)}
+          onOpenChange={open => handleOpenChange(manualToolCallId, open)}
+        />
+      )}
+      {showLoading && !lastToolData && <Spinner key="spinner" />}
       <div ref={messagesEndRef} /> {/* Add empty div as scroll anchor */}
     </div>
   )
